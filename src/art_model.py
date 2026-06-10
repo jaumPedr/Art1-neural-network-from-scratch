@@ -1,4 +1,31 @@
 import numpy as np
+import pandas as pd
+from ucimlrepo import fetch_ucirepo 
+from tqdm import tqdm
+
+def data_module():
+    #get data set
+    dry_bean = fetch_ucirepo(id=602) 
+
+    #features and targets
+    X = dry_bean.data.features 
+    y = dry_bean.data.targets
+
+
+    X_quartiles = []
+
+    #Separete each colum in 4 quartiles
+    for col in X.columns:
+        bins = pd.qcut(X[col], q=4, duplicates='drop')
+        X_quartiles.append(pd.get_dummies(bins, prefix=col))
+
+    #one-hot encoding, each quartiles is a feature (Dummy Variables)
+
+    X_bin = pd.concat(X_quartiles, axis=1)
+    X_bin = X_bin.astype(int).to_numpy()
+    
+
+    return X_bin,y
 
 class Art():
     def __init__(self, comparison_layer_size, recognition_layer_size, p):
