@@ -7,7 +7,7 @@ from tqdm import tqdm
 def data_module():
     #get data set
     dry_bean = fetch_ucirepo(id=602) 
-
+                                                   
     #features and targets
     X = dry_bean.data.features 
     y = dry_bean.data.targets
@@ -156,9 +156,18 @@ def train_loop(model : Art, X):
 #ART Test  
 X, y = data_module()
 
-model = Art(X.shape[1], 1, p = 0.05)
+model = Art(X.shape[1], 1, p = 0.035)
 Y, K = train_loop(model, X)
 
 np.savetxt('./results/art_output_classes.csv', K, delimiter=',', fmt='%d')
 np.savetxt('./results/art_output_one_hot_encoding.csv', Y, delimiter=',', fmt='%d')
 print('Number of Classes: ', model.recognition_layer_size)
+
+print(y.squeeze)
+
+df = pd.DataFrame({
+    'Classe_Real': y.squeeze(),
+    'Categoria_ART': K
+})
+
+print(pd.crosstab(df['Categoria_ART'], df['Classe_Real']))
