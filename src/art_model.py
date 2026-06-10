@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import json
 from ucimlrepo import fetch_ucirepo 
 from tqdm import tqdm
 
@@ -20,7 +21,6 @@ def data_module():
         X_quartiles.append(pd.get_dummies(bins, prefix=col))
 
     #one-hot encoding, each quartiles is a feature (Dummy Variables)
-
     X_bin = pd.concat(X_quartiles, axis=1)
     X_bin = X_bin.astype(int).to_numpy()
     
@@ -55,7 +55,7 @@ class Art():
         u = self.w_forward @ x
         
         #disable rejected nodes
-        u = u * self.node_status
+        u[self.node_status == 0] = -np.inf
 
         #activation function
         winner_node_index = np.argmax(u)
@@ -66,33 +66,35 @@ class Art():
     def backward(self, x, winner_node_index):
         
         #similarity ratio
-        if np.all(x == 0):
-            R = np.inf
-        else:
-            R = ( x @ self.w_backward[:,winner_node_index] ) / ( np.sum(x) )
+        R = ( x @ self.w_backward[:,winner_node_index] ) / ( np.sum(x) )
 
         return R > self.p
 
     #weight adaptation
     def weight_update(self, x, winner_node_index):
         
+        product = x * self.w_backward[:,winner_node_index]
+
         #update forward weights
-        self.w_forward[winner_node_index, :] = x * self.w_backward[:,winner_node_index] / ( 0.5 + (x @ self.w_backward[:,winner_node_index]))
+        self.w_forward[winner_node_index, :] = product / ( 0.5 + (x @ self.w_backward[:,winner_node_index]))
         
         #update backward weights
-        self.w_backward[:, winner_node_index] =  x * self.w_backward[:, winner_node_index]
+        self.w_backward[:, winner_node_index] =  product
 
 #category search step
 def train(model : Art, x):
 
+    #ignore nule class
+    if np.all(x == 0):
+        return -1
+
     while (True):
-        
         #select winner node
         k = model.forward(x)
         
         #apply backward function
         vigilance_satisfied = model.backward(x, k)
-
+        
         if (vigilance_satisfied) :
             #learn current pattern
             model.weight_update(x, k)
@@ -132,29 +134,31 @@ def add_node(model : Art):
 #train all input patterns
 def train_loop(model : Art, X):
     K = []
-    for x in X:
+    for x in tqdm(X):
         K.append(train(model, x))
     
     Y = []
 
     # build one-hot outputs
     for k in K:
-        y = np.zeros(shape= (model.recognition_layer_size))
-        y[k] = 1
+
+        if k == -1:
+            y = -1
+        else:
+            y = np.zeros(shape= (model.recognition_layer_size))
+            y[k] = 1
         Y.append(y)
 
-    return Y
+    Y = np.array(Y, dtype=int)
+
+    return Y, K
 
 #ART Test  
-model = Art(3, 1, p = 0.9)
-X = np.array([
-    [0, 0, 1],
-    [0, 0, 1],
-    [1, 0, 1],
-    [1, 0, 0],
-])
+X, y = data_module()
 
-Y = train_loop(model, X)
-print(Y)
-print(model.w_forward)
-print(model.w_backward)
+model = Art(X.shape[1], 1, p = 0.05)
+Y, K = train_loop(model, X)
+
+np.savetxt('./results/art_output_classes.csv', K, delimiter=',', fmt='%d')
+np.savetxt('./results/art_output_one_hot_encoding.csv', Y, delimiter=',', fmt='%d')
+print('Number of Classes: ', model.recognition_layer_size)
