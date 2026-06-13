@@ -2,3 +2,4 @@ numpy
 ucimlrepo
 pandas
 tqdm
+scikit-learn
