@@ -1,31 +1,5 @@
 import numpy as np
-import pandas as pd
-import json
-from ucimlrepo import fetch_ucirepo 
 from tqdm import tqdm
-
-def data_module():
-    #get data set
-    dry_bean = fetch_ucirepo(id=602) 
-                                                   
-    #features and targets
-    X = dry_bean.data.features 
-    y = dry_bean.data.targets
-
-
-    X_quartiles = []
-
-    #Separete each colum in 4 quartiles
-    for col in X.columns:
-        bins = pd.qcut(X[col], q=4, duplicates='drop')
-        X_quartiles.append(pd.get_dummies(bins, prefix=col))
-
-    #one-hot encoding, each quartiles is a feature (Dummy Variables)
-    X_bin = pd.concat(X_quartiles, axis=1)
-    X_bin = X_bin.astype(int).to_numpy()
-    
-
-    return X_bin,y
 
 class Art():
     def __init__(self, comparison_layer_size, recognition_layer_size, p):
@@ -64,6 +38,8 @@ class Art():
     
     #comparison step
     def backward(self, x, winner_node_index):
+        if np.sum(x) == 0:
+            return False
         
         #similarity ratio
         R = ( x @ self.w_backward[:,winner_node_index] ) / ( np.sum(x) )
@@ -82,22 +58,22 @@ class Art():
         self.w_backward[:, winner_node_index] =  product
 
 #category search step
-def train(model : Art, x):
+def fit(model : Art, features, max_recognitio_layer_size = np.inf):
 
     #ignore nule class
-    if np.all(x == 0):
+    if np.all(features == 0):
         return -1
 
     while (True):
         #select winner node
-        k = model.forward(x)
+        k = model.forward(features)
         
         #apply backward function
-        vigilance_satisfied = model.backward(x, k)
+        vigilance_satisfied = model.backward(features, k)
         
         if (vigilance_satisfied) :
             #learn current pattern
-            model.weight_update(x, k)
+            model.weight_update(features, k)
             
             # reactivate all nodes
             model.node_status[:] = 1
@@ -109,6 +85,8 @@ def train(model : Art, x):
 
             #create new category if needed
             if np.all( model.node_status == 0 ):
+                if model.recognition_layer_size >= max_recognitio_layer_size:
+                    return -1
                 add_node(model)
             
 
@@ -132,11 +110,15 @@ def add_node(model : Art):
 
 
 #train all input patterns
-def train_loop(model : Art, X):
+def train_loop(model : Art, X, epochs = 20):
     K = []
+    for e in range(epochs):
+        for x in tqdm(X):
+            fit(model, x)
+
     for x in tqdm(X):
-        K.append(train(model, x))
-    
+            K.append(fit(model, x))
+
     Y = []
 
     # build one-hot outputs
@@ -148,26 +130,8 @@ def train_loop(model : Art, X):
             y = np.zeros(shape= (model.recognition_layer_size))
             y[k] = 1
         Y.append(y)
-
     Y = np.array(Y, dtype=int)
 
     return Y, K
 
-#ART Test  
-X, y = data_module()
 
-model = Art(X.shape[1], 1, p = 0.035)
-Y, K = train_loop(model, X)
-
-np.savetxt('./results/art_output_classes.csv', K, delimiter=',', fmt='%d')
-np.savetxt('./results/art_output_one_hot_encoding.csv', Y, delimiter=',', fmt='%d')
-print('Number of Classes: ', model.recognition_layer_size)
-
-print(y.squeeze)
-
-df = pd.DataFrame({
-    'Classe_Real': y.squeeze(),
-    'Categoria_ART': K
-})
-
-print(pd.crosstab(df['Categoria_ART'], df['Classe_Real']))
