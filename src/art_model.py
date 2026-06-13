@@ -44,7 +44,7 @@ class Art():
         #similarity ratio
         R = ( x @ self.w_backward[:,winner_node_index] ) / ( np.sum(x) )
 
-        return R > self.p
+        return R >= self.p
 
     #weight adaptation
     def weight_update(self, x, winner_node_index):
@@ -77,8 +77,8 @@ def fit(model : Art, features, max_recognitio_layer_size = np.inf):
             
             # reactivate all nodes
             model.node_status[:] = 1
-            
             return k
+        
         else:
             #reject current category if vigilance not satisfied
             model.node_status[k] = 0
@@ -86,10 +86,10 @@ def fit(model : Art, features, max_recognitio_layer_size = np.inf):
             #create new category if needed
             if np.all( model.node_status == 0 ):
                 if model.recognition_layer_size >= max_recognitio_layer_size:
+                    model.node_status[:] = 1
                     return -1
                 add_node(model)
             
-
 #add new category to model
 def add_node(model : Art):
     #increase recognition layer size
@@ -108,9 +108,47 @@ def add_node(model : Art):
     new_w_b = np.ones(shape = (model.comparison_layer_size))
     model.w_backward = np.column_stack((model.w_backward, new_w_b))
 
+def predict(model : Art, X):
+    Y = []
+    K = []
+
+    for x in X:
+
+        model.node_status[:] = 1
+
+        if np.all(x == 0):
+            K.append(-1)
+            continue
+
+        while True:
+
+            k = model.forward(x)
+
+            if model.backward(x, k):
+                K.append(k)
+                break
+
+            model.node_status[k] = 0
+
+            if np.all(model.node_status == 0):
+                K.append(-1)
+                break
+
+    for k in K:
+
+        if k == -1:
+            y = -1
+        else:
+            y = np.zeros(shape= (model.recognition_layer_size))
+            y[k] = 1
+        Y.append(y)
+    #Y = np.array(Y, dtype=int)
+
+    return Y, K
+
 
 #train all input patterns
-def train_loop(model : Art, X, epochs = 20):
+def train_loop(model : Art, X, epochs = 5):
     K = []
     for e in range(epochs):
         for x in tqdm(X):
