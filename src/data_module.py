@@ -25,7 +25,6 @@ def train_test_validation_split(features, targets, test_split=0.2, validation_sp
 def complement_coding(binary_features):
 
     complement_features = 1 - binary_features
-    X = binary_features + complement_features
 
     return np.hstack( [binary_features, complement_features] )
 

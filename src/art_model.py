@@ -1,7 +1,7 @@
 import numpy as np
 from tqdm import tqdm
 
-RANDOM_SEED = 42
+RANDOM_SEED = 40
 rng = np.random.default_rng(RANDOM_SEED)
 
 
@@ -160,7 +160,7 @@ def train_loop(model : Art, X, epochs = 100, min_growth=0, patience=5):
     for e in range(epochs):
 
         #randomize input presentation order
-        idx = np.random.permutation(len(X))
+        idx = rng.permutation(len(X))
 
         for x in tqdm(X[idx], desc=f'Epoch: {e+1}'):
             fit(model, x)
@@ -176,7 +176,7 @@ def train_loop(model : Art, X, epochs = 100, min_growth=0, patience=5):
         previous_classes = current_classes
 
         if no_improvement >= patience:
-            print(f'Early stopping at epoch {e+1}')
+            #print(f'Early stopping at epoch {e+1}')
             break
 
     Y,K = predict(model, X)
