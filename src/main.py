@@ -1,76 +1,70 @@
 import art_model as art
 import data_module as data
-import numpy as np
+import model_evaluation as evaluation
+import plots
 import pandas as pd
+import numpy as np
 
-pd.set_option('display.max_rows', None)
-pd.set_option('display.max_columns', None)
+from sklearn.decomposition import PCA
 
-def run_model(X,y):
-    X_train, y_train, X_validation, y_validation, X_test, y_test = data.train_test_validation_split(X,y)
 
-    # Train
-    model = art.Art(X_train.shape[1], 1, p=0.5)
+def run_model(X, X_pca, y, p, feature_name):
+
+    X_train, y_train, X_validation, y_validation, X_test, y_test = data.train_test_validation_split(X, y)
+
+    X_pca_train, _, X_pca_validation, _, X_pca_test, _ =data.train_test_validation_split(X_pca, y)
+
+    model = art.Art(X_train.shape[1], 1, p=p)
+
     Y_train, K_train = art.train_loop(model, X_train)
-
-    # Validation
     Y_validation, K_validation = art.predict(model, X_validation)
-
-    # Test
     Y_test, K_test = art.predict(model, X_test)
 
-    print('\nTRAIN: ')
-    print('Number of Classes: ', model.recognition_layer_size)
-    print('Number of Features: ',X[1].size)
+    plots.compare_clusters(X_pca_test, y_test, K_test, title=f"{feature_name}_p_{p:.1f}")
 
-    df = pd.DataFrame({
-        'Classe_Real': y_train.squeeze(),
-        'Categoria_ART': K_train
-    })
+    train_metrics = evaluation.evaluate_clustering(y_train, K_train, model.recognition_layer_size)
+    validation_metrics = evaluation.evaluate_clustering(y_validation, K_validation, model.recognition_layer_size)
+    test_metrics = evaluation.evaluate_clustering(y_test, K_test, model.recognition_layer_size)
 
-    print(pd.crosstab(df['Categoria_ART'], df['Classe_Real']))
-
-    print('\nVALIDATION: ')
-
-    df_validation = pd.DataFrame({
-        'Classe_Real': y_validation.squeeze(),
-        'Categoria_ART': K_validation
-    })
-
-    print(pd.crosstab(
-        df_validation['Categoria_ART'],
-        df_validation['Classe_Real']
-    ))
-
-    # Test Crosstab
-    print('\nTEST: ')
-
-    df_test = pd.DataFrame({
-        'Classe_Real': y_test.squeeze(),
-        'Categoria_ART': K_test
-    })
-
-    print(pd.crosstab(
-        df_test['Categoria_ART'],
-        df_test['Classe_Real']
-    ))
+    return train_metrics, validation_metrics, test_metrics
 
 
-#ART Test  
 X, y = data.get_data()
+X_pca = PCA(n_components=2).fit_transform(X)
 
-#binary thresholding
-binary_threshold_features = data.binary_thresholding(X)
-binary_threshold_features = data.complement_coding(binary_threshold_features)
-run_model(binary_threshold_features,y)
+feature_sets = {
+    "Threshold": data.complement_coding(data.binary_thresholding(X)),
+    "Quartiles": data.complement_coding(data.quartiles_binary_binning(X, q=4)),
+    "Thermometer": data.complement_coding(data.thermometer_encoding(X, levels=4))
+}
 
-#quartiles binary binning
-quartiles_binary_binning_features = data.quartiles_binary_binning(X, q=4)
-quartiles_binary_binning_features = data.complement_coding(quartiles_binary_binning_features)
-run_model(quartiles_binary_binning_features,y)
+results = []
+for feature_name, X_features in feature_sets.items():
 
-#thermometer encoding 
-thermometer_encoding_features = data.thermometer_encoding(X)
-thermometer_encoding_features = data.complement_coding(thermometer_encoding_features)
-run_model(thermometer_encoding_features,y)
+    print(f"\nRunning {feature_name}")
 
+    for p in np.arange(0.1, 1.0, 0.1):
+
+        print("\np:", p)
+
+        train_metrics, validation_metrics, test_metrics = run_model(X_features, X_pca, y, p, feature_name)
+
+        row = {
+            "Feature_Set": feature_name,
+            "p": round(p, 2)
+        }
+
+        for metric_name, value in train_metrics.items():
+            row[f"{metric_name}_Train"] = value
+
+        for metric_name, value in validation_metrics.items():
+            row[f"{metric_name}_Val"] = value
+
+        for metric_name, value in test_metrics.items():
+            row[f"{metric_name}_Test"] = value
+
+        results.append(row)
+
+results_df = pd.DataFrame(results)
+
+results_df.to_csv("./results/art_experiment_results.csv",index=False)
