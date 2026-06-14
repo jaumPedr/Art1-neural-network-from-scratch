@@ -1,6 +1,10 @@
 import numpy as np
 from tqdm import tqdm
 
+RANDOM_SEED = 42
+rng = np.random.default_rng(RANDOM_SEED)
+
+
 class Art():
     def __init__(self, comparison_layer_size, recognition_layer_size, p):
         #F1 layer size
@@ -20,7 +24,6 @@ class Art():
 
         #backward weights
         self.w_backward = np.ones(shape = (comparison_layer_size, recognition_layer_size))
-        
         
     #recognition step
     def forward(self, x):
@@ -108,6 +111,7 @@ def add_node(model : Art):
     new_w_b = np.ones(shape = (model.comparison_layer_size))
     model.w_backward = np.column_stack((model.w_backward, new_w_b))
 
+#run model without weight adaptation
 def predict(model : Art, X):
     Y = []
     K = []
@@ -134,41 +138,48 @@ def predict(model : Art, X):
                 K.append(-1)
                 break
 
+    # build one-hot outputs
     for k in K:
-
-        if k == -1:
-            y = -1
-        else:
-            y = np.zeros(shape= (model.recognition_layer_size))
-            y[k] = 1
+        y = np.zeros(shape= (model.recognition_layer_size))
+        
+        if k != -1:
+            y[k] = 1   
+        
         Y.append(y)
-    #Y = np.array(Y, dtype=int)
+    Y = np.array(Y, dtype=int)
 
     return Y, K
 
-
 #train all input patterns
-def train_loop(model : Art, X, epochs = 5):
-    K = []
+def train_loop(model : Art, X, epochs = 100, min_growth=0, patience=5):
+    
+    #early stopping  params
+    no_improvement = 0
+    previous_classes = model.recognition_layer_size
+
     for e in range(epochs):
-        for x in tqdm(X):
+
+        #randomize input presentation order
+        idx = np.random.permutation(len(X))
+
+        for x in tqdm(X[idx], desc=f'Epoch: {e+1}'):
             fit(model, x)
 
-    for x in tqdm(X):
-            K.append(fit(model, x))
+        current_classes = model.recognition_layer_size
+        growth = current_classes - previous_classes
 
-    Y = []
-
-    # build one-hot outputs
-    for k in K:
-
-        if k == -1:
-            y = -1
+        if growth <= min_growth:
+            no_improvement += 1
         else:
-            y = np.zeros(shape= (model.recognition_layer_size))
-            y[k] = 1
-        Y.append(y)
-    Y = np.array(Y, dtype=int)
+            no_improvement = 0
+
+        previous_classes = current_classes
+
+        if no_improvement >= patience:
+            print(f'Early stopping at epoch {e+1}')
+            break
+
+    Y,K = predict(model, X)
 
     return Y, K
 
