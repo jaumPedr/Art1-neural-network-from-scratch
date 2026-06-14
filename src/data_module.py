@@ -1,10 +1,10 @@
 import pandas as pd
+import numpy as np
 from sklearn.model_selection import train_test_split
 from ucimlrepo import fetch_ucirepo 
+from sklearn.preprocessing import StandardScaler
 
 RANDOM_SEED = 42
-TEST_SPLIT = 0.2
-VALIDATION_SPLIT = 0.2
 
 
 def get_data():
@@ -16,13 +16,36 @@ def get_data():
     targets = dry_bean.data.targets
     return features, targets
 
-def train_test_validation_split(features, targets):
-    X_train, X_test, y_train, y_test = train_test_split(features, targets, test_size=TEST_SPLIT, random_state=RANDOM_SEED)
-    X_train, X_validation, y_train, y_validation = train_test_split(X_train, y_train, test_size=VALIDATION_SPLIT, random_state=RANDOM_SEED)
+def train_test_validation_split(features, targets, test_split=0.2, validation_split=0.2):
+    X_train, X_test, y_train, y_test = train_test_split(features, targets, test_size=test_split, random_state=RANDOM_SEED)
+    X_train, X_validation, y_train, y_validation = train_test_split(X_train, y_train, test_size=validation_split, random_state=RANDOM_SEED)
 
     return X_train, y_train, X_validation, y_validation, X_test, y_test
 
-def quartiles_dummy_variables(features, q=4):
+def complement_coding(binary_features):
+
+    complement_features = 1 - binary_features
+    X = binary_features + complement_features
+
+    return np.hstack( [binary_features, complement_features] )
+
+def thermometer_encoding(features, levels=12):
+
+    X_thermometer = []
+
+    for col in features.columns:
+        bins = pd.qcut( features[col], q=levels, labels=False, duplicates='drop')
+
+        encoded_col = np.zeros( (len(features), levels), dtype=int)
+
+        for i, level in enumerate(bins):
+            encoded_col[i, :level+1] = 1
+
+        X_thermometer.append(encoded_col)
+
+    return np.hstack(X_thermometer)
+
+def quartiles_binary_binning(features, q=4):
     
     X_quartiles = []
 
@@ -35,4 +58,19 @@ def quartiles_dummy_variables(features, q=4):
     X_bin = pd.concat(X_quartiles, axis=1)
     X_bin = X_bin.astype(int).to_numpy()
 
-    return X_bin
+    return X_bin 
+
+def binary_thresholding(features):
+    
+    #Standardize features
+    scaler = StandardScaler()
+    scaler.fit(features)
+    standardized_features = scaler.transform(features)
+
+    medians_threshold = np.median(standardized_features, axis=1, keepdims=True)
+
+    binary_features = []
+    binary_features = ( standardized_features >= medians_threshold ).astype(int)
+
+    return binary_features
+    
