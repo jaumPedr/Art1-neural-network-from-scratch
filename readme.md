@@ -1,4 +1,4 @@
-# ART1 Clustering on the Dry Bean Dataset
+# ART-1 Neural Network from scratch
 
 This project implements an **ART1 (Adaptive Resonance Theory)** neural network for unsupervised clustering and evaluates its performance on the **Dry Bean Dataset** using different binary feature encoding techniques.
 
