@@ -1,6 +1,7 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 
+#Compare the true classes and the ART-generated categories using a 2D PCA projection.
 def compare_clusters(X_2d, y_true, K, title):
 
     fig, ax = plt.subplots(1, 2, figsize=(14,6))
